@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>樂活五線譜投資決策面板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans min-h-screen pb-10">
+    <div class="max-w-md mx-auto px-4 pt-6 md:max-w-4xl">
+        <h1 class="text-2xl font-bold text-center text-teal-400 mb-4">📈 樂活五線譜趨勢圖</h1>
+        
+        <div class="mb-5">
+            <label for="ticker-select" class="block text-xs font-medium text-gray-400 mb-1">選擇商品</label>
+            <select id="ticker-select" class="w-full bg-gray-900 text-white border border-gray-800 rounded-xl p-3 text-base focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-5">
+            <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 text-center">
+                <p class="text-xs text-gray-400">最新收盤價</p>
+                <p id="info-price" class="text-xl font-bold text-white mt-1">--</p>
+            </div>
+            <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 text-center">
+                <p class="text-xs text-gray-400">趨勢強度 (R²)</p>
+                <p id="info-r2" class="text-xl font-bold text-teal-400 mt-1">--</p>
+            </div>
+        </div>
+
+        <div class="bg-gray-900 p-2 rounded-xl border border-gray-800 shadow-xl relative h-[380px] md:h-[500px]">
+            <canvas id="trendChart"></canvas>
+        </div>
+        
+        <p id="update-time" class="text-center text-xs text-gray-500 mt-6">最後更新時間：讀取中...</p>
+    </div>
+
+    <script>
+        let globalData = {};
+        let chartInstance = null;
+
+        // 讀取由 Python 產生的數據檔案
+        fetch('data.json')
+            .then(res => res.json())
+            .then(json => {
+                globalData = json.data;
+                document.getElementById('update-time').innerText = `最後更新時間：${json.last_updated} (自動更新)`;
+                
+                // 動態生成下拉選單選項
+                const select = document.getElementById('ticker-select');
+                Object.keys(globalData).forEach(ticker => {
+                    const opt = document.createElement('option');
+                    opt.value = ticker;
+                    opt.innerHTML = ticker;
+                    select.appendChild(opt);
+                });
+
+                // 監聽選單切換
+                select.addEventListener('change', (e) => renderChart(e.target.value));
+                
+                // 預設載入第一個商品
+                if(Object.keys(globalData).length > 0) {
+                    renderChart(Object.keys(globalData)[0]);
+                }
+            });
+
+        function renderChart(ticker) {
+            const stock = globalData[ticker];
+            document.getElementById('info-price').innerText = stock.last_price.toFixed(2);
+            document.getElementById('info-r2').innerText = stock.r_squared.toFixed(3);
+
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (chartInstance) { chartInstance.destroy(); }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: stock.dates,
+                    datasets: [
+                        { label: '實際股價', data: stock.actual, borderColor: '#ffffff', borderWidth: 2, pointRadius: 0, order: 1 },
+                        { label: '極度樂觀 (TL+2SD)', data: stock.tl_p2, borderColor: '#ef4444', borderWidth: 1, borderDash: [3,3], pointRadius: 0, order: 2 },
+                        { label: '樂觀 (TL+1SD)', data: stock.tl_p1, borderColor: '#f97316', borderWidth: 1, borderDash: [3,3], pointRadius: 0, order: 2 },
+                        { label: '趨勢中線 (TL)', data: stock.tl, borderColor: '#eab308', borderWidth: 1.5, pointRadius: 0, order: 2 },
+                        { label: '悲觀 (TL-1SD)', data: stock.tl_m1, borderColor: '#22c55e', borderWidth: 1, borderDash: [3,3], pointRadius: 0, order: 2 },
+                        { label: '極度悲觀 (TL-2SD)', data: stock.tl_m2, borderColor: '#06b6d4', borderWidth: 1, borderDash: [3,3], pointRadius: 0, order: 2 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', maxTicksLimit: 5, font: { size: 10 } } },
+                        y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#f3f4f6', boxWidth: 10, font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
